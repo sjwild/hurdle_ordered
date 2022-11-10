@@ -9,7 +9,7 @@ source("helper_functions_from_brms.R")
 source("hurdle_ordered_function.R")
 
 
-# more complex version
+#### Simulate some data for testing ####
 N <- 10000
 P <- 5
 cutpoints <- c(1, -1)
@@ -59,8 +59,7 @@ out <- cmstanr_to_brms(
 expose_functions(out, vectorize = TRUE)
 
 
-
-
+# model checks
 summary(out)
 pp_check(out) + theme_minimal()
 loo(out)

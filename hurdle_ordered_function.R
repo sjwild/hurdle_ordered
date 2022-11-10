@@ -2,14 +2,22 @@
 
 
 cmstanr_to_brms <- function(
-  .formula, 
-  .outcome = NULL, 
-  #.DK,
-  .family, .priors, .data, .chains, .cores = parallel::detectCores(logical = F),
-  .warmup, 
-  #.stan_vars = NULL,
-  .sampling, .seed, .base_name = "/cmdtanr_file", .base_dir = here(), .dest = NULL, 
-  .stan_dir = str_c(.base_dir, "/stan"), .metadata = FALSE, ...
+  .formula,  # must be in the form of bf(y ~ ., hu ~ .)
+  .outcome = NULL, # put the outcome here. It is necessary to get the number of thresholds
+  .family = hurdle_ordinal,
+  .priors, # if using default priors, brms will crash. You must adjust the prior for hu, as brms use beta as the default
+  .data, # dataframe here
+  .chains = 4, # 4 chains by default
+  .cores = parallel::detectCores(logical = F),
+  .warmup = 1000, # 1000 warmup iterations
+  .sampling = 1000, # 1000 sampling iterations
+  .seed, 
+  .base_name = "/cmdtanr_file", 
+  .base_dir = here(), 
+  .dest = NULL, 
+  .stan_dir = str_c(.base_dir, "/stan"), 
+  .metadata = FALSE, 
+  ...
 ) {
   
   if(is.null(.outcome)){
