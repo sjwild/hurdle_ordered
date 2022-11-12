@@ -92,3 +92,5 @@ out_merkel <- cmstanr_to_brms(
 summary(out_merkel)
 pp_check(out_merkel, type = "bars") + theme_minimal()
 loo(out_merkel)
+
+
