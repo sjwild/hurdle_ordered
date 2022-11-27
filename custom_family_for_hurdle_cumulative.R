@@ -1,24 +1,21 @@
 
 stan_funs <- "
   real hurdle_cumulative_lpmf(int y, real mu, real hu, vector c, int vint1) { 
-  //real hurdle_cumulative_lpmf(int y, vector mu, vector hu, vector c, vint1 DK) { 
 
     if (y == vint1) { 
       return bernoulli_lpmf(1 | hu); 
     } else { 
       return bernoulli_lpmf(0 | hu) +  
              ordered_logistic_lpmf(y | logit(mu), c); 
-
     } 
   }
   
-  int hurdle_cumulative_rng(real hu, real mu, vector c, int vint1) {
-    real p = inv_logit(hu);
-    if (bernoulli_rng(p) == 1){
+  int hurdle_cumulative_rng(real mu, real hu, vector c, int vint1) {
+    if (bernoulli_rng(hu) == 1){
       return vint1;
     }
     else {
-      return ordered_logistic_rng(mu, c);
+      return ordered_logistic_rng(logit(mu), c);
     }
   }
   
