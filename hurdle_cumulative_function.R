@@ -4,7 +4,7 @@
 cmstanr_to_brms <- function(
   .formula,  # must be in the form of bf(y ~ ., hu ~ .)
   .outcome = NULL, # put the outcome here. It is necessary to get the number of thresholds
-  .family = hurdle_ordinal,
+  .family = hurdle_cumulative,
   .priors, # if using default priors, brms will crash. You must adjust the prior for hu, as brms use beta as the default
   .data, # dataframe here
   .chains = 4, # 4 chains by default
@@ -29,22 +29,22 @@ cmstanr_to_brms <- function(
   
   # stan funs for custom family
   stan_funs <- "
-  real hurdle_ordinal_lpmf(int y, real mu, real hu, vector c) { 
-  //real hurdle_ordinal_lpmf(int y, vector mu, vector hu, vector c, vint1 DK) { 
+  real hurdle_cumulative_lpmf(int y, real mu, real hu, vector c, int vint1) { 
+  //real hurdle_cumulative_lpmf(int y, vector mu, vector hu, vector c, vint1 DK) { 
 
-    if (y == 99) { 
-      return bernoulli_logit_lpmf(1 | hu); 
+    if (y == vint1) { 
+      return bernoulli_lpmf(1 | hu); 
     } else { 
-      return bernoulli_logit_lpmf(0 | hu) +  
-             ordered_logistic_lpmf(y | mu, c); 
+      return bernoulli_lpmf(0 | hu) +  
+             ordered_logistic_lpmf(y | logit(mu), c); 
 
     } 
   }
   
-  int hurdle_ordinal_rng(real hu, real mu, vector c) {
+  int hurdle_cumulative_rng(real hu, real mu, vector c, int vint1) {
     real p = inv_logit(hu);
     if (bernoulli_rng(p) == 1){
-      return 0;
+      return vint1;
     }
     else {
       return ordered_logistic_rng(mu, c);
@@ -52,6 +52,7 @@ cmstanr_to_brms <- function(
   }
   
   "
+  
   # stan_vars for custom model
   stan_vars <- stanvar(scode = stan_funs, block = "functions") 
   
@@ -82,8 +83,6 @@ cmstanr_to_brms <- function(
   
   stan_data$nthres <- nthres
   stan_code <- stancode(brmsfit_fit)
-  stan_code <- gsub("y == 99", paste0("y == ", DK), stan_code)
-  stan_code <- gsub("return 0;", paste0("return ", DK, ";"), stan_code)
   
   
   brmsfit_fit$family$thres <- data.frame(thres = 1:nthres,
@@ -158,41 +157,43 @@ cmstanr_to_brms <- function(
 }
 
 
-hurdle_ordinal <- 
-  # Create a custom family that is logit if y = 0, normal/gaussian if not
-  custom_family("hurdle_ordinal", 
+hurdle_cumulative <- 
+  # Create a custom family that is logit if y = DK, cumulative if not
+  custom_family("hurdle_cumulative", 
                 dpars = c("mu", "hu"),
-                links = c("identity", "identity"),
+                links = c("logit", "logit"),
                 specials = "ordinal",
                 type = "int",
+                vars = "vint1[n]",
                 threshold = "flexible")
 
-log_lik_hurdle_ordinal <- function(i, prep) {
-  mu <- get_dpar(prep, "mu", i = i)
-  hu <- inv_logit(get_dpar(prep, "hu", i = i))
+
+log_lik_hurdle_cumulative <- function(i, prep) {
+  mu <- logit(get_dpar(prep, "mu", i = i))
+  hu <- get_dpar(prep, "hu", i = i)
   thres <- subset_thres(prep, i)
   nthres <- NCOL(thres)
   eta <- thres - mu
   y <- prep$data$Y[i]
   DK <- max(prep$data$Y)
   if (y == 1L) {
-    out <- log_cdf(eta[, 1L], "logit") + 
+    out <- log_cdf(eta[, 1L], prep$family$link) + 
       dbinom(0, size = 1, prob = hu, log = TRUE)
   } else if (y == nthres + 1L) {
-    out <- log_ccdf(eta[, y - 1L], "logit") + 
+    out <- log_ccdf(eta[, y - 1L], prep$family$link) + 
       dbinom(0, size = 1, prob = hu, log = TRUE)
   } else if (y == DK) {
     out <- dbinom(1, size = 1, prob = hu, log = TRUE)
   } else {
     out <- log_diff_exp(
-      log_cdf(eta[, y], "logit"),
-      log_cdf(eta[, y - 1L], "logit") 
+      log_cdf(eta[, y], prep$family$link),
+      log_cdf(eta[, y - 1L], prep$family$link) 
     ) + dbinom(0, size = 1, prob = hu, log = TRUE)
   }
   log_lik_weight(out, i = i, prep = prep)
 }
 
-posterior_predict_hurdle_ordinal <- function(i, prep, ...) {
+posterior_predict_hurdle_cumulative <- function(i, prep, ...) {
   mu <- brms::get_dpar(prep, "mu", i = i)
   hu <- brms::get_dpar(prep, "hu", i = i)
   thres <- subset_thres(prep)
@@ -201,23 +202,25 @@ posterior_predict_hurdle_ordinal <- function(i, prep, ...) {
   DK <- as.numeric(max(prep$data$Y))
   p <- pordinal(
     seq_len(nthres + 1),
-    eta = get_dpar(prep, "mu", i = i),
+    eta = logit(mu),
     disc = 1,
     thres = thres,
     family = "cumulative",
-    link = "logit"
+    link = prep$family$link
+    #link = "identity"
   )
   draws <- first_greater(p, target = runif(prep$ndraws, min = 0, max = 1))
   theta <- runif(ndraws, 0, 1)
-  draws[inv_logit(hu) > theta] <- DK
+  #draws[inv_logit(hu) > theta] <- DK
+  draws[hu > theta] <- DK
   return(draws)
 }
 
 
-posterior_epred_hurdle_ordinal <- function(prep) {
+posterior_epred_hurdle_cumulative <- function(prep) {
   mu <- brms::get_dpar(prep, "mu")
   hu <- brms::get_dpar(prep, "hu")
-  return(inv_logit(mu) * inv_logit(hu))
+  return(mu * hu)
 }
 
 

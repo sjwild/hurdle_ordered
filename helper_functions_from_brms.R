@@ -70,22 +70,6 @@ inv_link_cumulative <- function(x, link) {
   abind::abind(x, ones_arr) - abind::abind(zeros_arr, x)
 }
 
-
-posterior_predict_ordinal <- function(i, prep, ...) {
-  thres <- subset_thres(prep, i)
-  nthres <- NCOL(thres)
-  p <- pordinal(
-    seq_len(nthres + 1),
-    eta = get_dpar(prep, "mu", i = i),
-    disc = get_dpar(prep, "disc", i = i),
-    thres = thres,
-    family = prep$family$family,
-    link = prep$family$link
-  )
-  first_greater(p, target = runif(prep$ndraws, min = 0, max = 1))
-}
-
-
 inv_link <- function(x, link) {
   switch(link,
          identity = x,
@@ -159,3 +143,4 @@ log1m_inv_logit <- function(x) {
   log(1 - inv_logit(x))
 }
 
+logit <- function(x) log(x / (1 - x))
