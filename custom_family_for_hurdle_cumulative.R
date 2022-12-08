@@ -43,7 +43,7 @@ log_lik_hurdle_cumulative <- function(i, prep) {
   nthres <- NCOL(thres)
   eta <- thres - mu
   y <- prep$data$Y[i]
-  DK <- max(prep$data$Y)
+  DK <- prep$data$vint1[i]
   if (y == 1L) {
     out <- log_cdf(eta[, 1L], prep$family$link) + 
       dbinom(0, size = 1, prob = hu, log = TRUE)
@@ -64,6 +64,8 @@ log_lik_hurdle_cumulative <- function(i, prep) {
 posterior_predict_hurdle_cumulative <- function(i, prep, ...) {
   mu <- brms::get_dpar(prep, "mu", i = i)
   hu <- brms::get_dpar(prep, "hu", i = i)
+  #disc <- brms::get_dpar(prep, "disc", i = i)
+  disc = 1
   thres <- subset_thres(prep)
   nthres <- NCOL(thres)
   ndraws <- prep$ndraws
@@ -71,7 +73,7 @@ posterior_predict_hurdle_cumulative <- function(i, prep, ...) {
   p <- pordinal(
     seq_len(nthres + 1),
     eta = logit(mu),
-    disc = 1,
+    disc = disc,
     thres = thres,
     family = "cumulative",
     link = prep$family$link

@@ -6,7 +6,7 @@ library(tidyverse)
 library(here)
 
 source("helper_functions_from_brms.R")
-source("hurdle_cumulative_function.R")
+source("custom_family_for_hurdle_cumulative_disc.R")
 
 
 #### Simulate some data for testing ####
@@ -66,18 +66,16 @@ loo(out)
 
 
 
-
-#### test with real data ####
 merkel <- read.csv("https://raw.githubusercontent.com/octmedina/zi-ordinal/main/merkel_data.csv")
 merkel$confid_merkel[merkel$confid_merkel == 0] <- 97
 
-
-
-out_merkel <- cmstanr_to_brms(
+out_merkel_disc <- cmstanr_to_brms(
   .formula = bf(confid_merkel | vint(97) ~ edu + race + income + party,
-                hu ~ 1 + edu + race + income + party),
+                #disc ~ 1 + edu + race + income + party,
+                hu ~ 1 + edu + race + income + party
+  ),
   .outcome = merkel$confid_merkel,
-  .family = hurdle_cumulative,
+  .family = hurdle_cumulative2,
   .prior = c(prior(normal(0, 2), class = b),
              prior(normal(0, 2), class = Intercept, dpar = hu)),
   .data = merkel,
@@ -85,17 +83,10 @@ out_merkel <- cmstanr_to_brms(
   .cores = 4,
   .warmup = 1000,
   .sampling = 2000,
+  #adapt_delta = 0.99, # if testing disc in formula
   .seed = 1234
 )
 
-summary(out_merkel)
-pp_check(out_merkel, type = "bars") + theme_minimal()
-loo(out_merkel)
-
-
-
-
-
-
-
-
+summary(out_merkel_disc)
+pp_check(out_merkel_disc, type = "bars") + theme_minimal()
+loo(out_merkel_disc)
