@@ -80,15 +80,56 @@ posterior_predict_hurdle_cumulative <- function(i, prep, ...) {
   )
   draws <- first_greater(p, target = runif(prep$ndraws, min = 0, max = 1))
   theta <- runif(ndraws, 0, 1)
-  draws[hu > theta] <- DK
+  draws[hu > theta] <- DK[draws[hu > theta]]
   return(draws)
 }
 
 
+
 posterior_epred_hurdle_cumulative <- function(prep) {
-  mu <- brms::get_dpar(prep, "mu")
-  hu <- brms::get_dpar(prep, "hu")
-  return(mu * hu)
+  #dens <- get(paste0("d", "cumulative"), mode = "function")
+  # the linear scale has one column less than the response scale
+  adjust <- ifelse(prep$family$link == "identity", 0, 1)
+  #ncat_max <- max(prep$data$nthres) + adjust
+  ncat_max <- NCOL(prep$thres$thres) + adjust
+  #nact_min <- min(prep$data$nthres) + adjust
+  #init_mat <- matrix(ifelse(prep$family$link == "identity", NA, 0),
+  #                   nrow = prep$ndraws,
+  #                   ncol = ncat_max - nact_min)
+  args <- list(link = prep$family$link)
+  out <- vector("list", prep$nobs)
+  
+  #for (i in seq_along(out)) {
+  for (i in seq_along(out)) {
+    args_i <- args
+    args_i$eta <- logit(slice_col(get_dpar(prep, "mu", i)))
+    args_i$disc <- slice_col(get_dpar(prep, "disc", i))
+    args_i$thres <- subset_thres(prep, i)
+    ncat_i <- NCOL(args_i$thres) + adjust
+    args_i$x <- seq_len(ncat_i)
+    out[[i]] <- do_call(dcumulative, args_i)
+    
+    # this section not needed right now because we cannot use thresh
+    # But can leave as is because 
+    #if (ncat_i < ncat_max) {
+    #  sel <- seq_len(ncat_max - ncat_i)
+    #  out[[i]] <- cbind(out[[i]], init_mat[, sel])
+    #}
+    
+    hu <- get_dpar(prep, "hu", i)
+    out[[i]] <- cbind(out[[i]] * (1 - hu), hu)
+    
+  }
+  
+  out <- abind(out, along = 3)
+  out <- aperm(out, perm = c(1, 3, 2))
+  DK <- prep$data$vint1
+  dimnames(out)[[3]] <- c(seq_len(ncat_max), paste0(DK[1]))
+  return(out)
+  
 }
+
+
+
 
 

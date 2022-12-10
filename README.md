@@ -1,7 +1,7 @@
 # hurdle_ordered
 This is a function to run a hurdle ordinal model. "Don't knows" are modeled using a bernoulli distribution, while the ordinal scale is modeled as ordinal.
 
-This is still in development, so it may or may not work well. Use at your own risk.
+This is still in development, so it may or may not work well. __Use at your own risk__.
 
 ## files
 There are three main files that matter:
@@ -15,6 +15,7 @@ There are three main files that matter:
 * `bf(y | thres(num_thres, group) ~ ...)` doesn't work. I need to figure out how to properly specify the grouping structure and update the brms model.
 * Thresholds are set to be flexible. Other options don't work at the moment.
 * Where possible, set the "Don't knows" to be one leve higher than the ordinal scale. This makes it easier to visualize the posterior predictive checks. If you don't care what they look like, set "Don't know" to whatever you want.
+* __Use at your own risk__
 
 
 ## Credit where credit is due

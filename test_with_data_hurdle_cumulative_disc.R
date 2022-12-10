@@ -71,7 +71,7 @@ merkel$confid_merkel[merkel$confid_merkel == 0] <- 97
 
 out_merkel_disc <- cmstanr_to_brms(
   .formula = bf(confid_merkel | vint(97) ~ edu + race + income + party,
-                #disc ~ 1 + edu + race + income + party,
+                disc ~ 1 + edu,
                 hu ~ 1 + edu + race + income + party
   ),
   .outcome = merkel$confid_merkel,
@@ -88,5 +88,6 @@ out_merkel_disc <- cmstanr_to_brms(
 )
 
 summary(out_merkel_disc)
-pp_check(out_merkel_disc, type = "bars") + theme_minimal()
+pp_check(out_merkel_disc, type = "bars", ndraws = 50) + theme_minimal()
 loo(out_merkel_disc)
+

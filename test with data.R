@@ -1,4 +1,5 @@
 library(brms)
+library(abind)
 library(cmdstanr)
 library(posterior)
 library(magrittr)

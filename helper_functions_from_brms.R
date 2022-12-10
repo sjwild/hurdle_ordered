@@ -144,3 +144,60 @@ log1m_inv_logit <- function(x) {
 }
 
 logit <- function(x) log(x / (1 - x))
+
+slice_col <- function(x, i) {
+  if (length(dim(x)) < 2L) {
+    # a vector or 1D array is treated as already sliced
+    return(x)
+  }
+  slice(x, 2, i)
+}
+
+
+slice <- function(x, dim, i, drop = TRUE) {
+  ndim <- length(dim(x))
+  commas1 <- collapse(rep(", ", dim - 1))
+  commas2 <- collapse(rep(", ", ndim - dim))
+  drop_dim <- ifelse(drop, ", drop_dim = dim", "")
+  expr <- paste0("extract(x, ", commas1, "i", commas2, drop_dim, ")")
+  eval2(expr)
+}
+
+
+do_call <- function(what, args, pkg = NULL, envir = parent.frame()) {
+  call <- ""
+  if (length(args)) {
+    if (!is.list(args)) {
+      stop2("'args' must be a list.")
+    }
+    fun_args <- names(args)
+    if (is.null(fun_args)) {
+      fun_args <- rep("", length(args))
+    } else {
+      nzc <- nzchar(fun_args)
+      fun_args[nzc] <- paste0("`", fun_args[nzc], "` = ")
+    }
+    names(args) <- paste0(".x", seq_along(args))
+    call <- paste0(fun_args, names(args), collapse = ",")
+  } else {
+    args <- list()
+  }
+  if (is.function(what)) {
+    args$.fun <- what
+    what <- ".fun"
+  } else {
+    what <- paste0("`", as_one_character(what), "`")
+    if (!is.null(pkg)) {
+      what <- paste0(as_one_character(pkg), "::", what)
+    }
+  }
+  call <- paste0(what, "(", call, ")")
+  eval2(call, envir = args, enclos = envir)
+}
+
+eval2 <- function(expr, envir = parent.frame(), ...) {
+  if (is.character(expr)) {
+    expr <- str2expression(expr)
+  }
+  eval(expr, envir, ...)
+}
