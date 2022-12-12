@@ -6,7 +6,7 @@ library(tidyverse)
 library(here)
 
 source("helper_functions_from_brms.R")
-source("custom_family_for_hurdle_cumulative_disc.R")
+source("brms custom family/custom_family_for_hurdle_cumulative_disc.R")
 
 
 #### Simulate some data for testing ####
@@ -61,7 +61,7 @@ expose_functions(out, vectorize = TRUE)
 
 # model checks
 summary(out)
-pp_check(out, type = "bars") + theme_minimal()
+pp_check(out, type = "bars", ndraws = 50) + theme_minimal()
 loo(out)
 
 
@@ -71,7 +71,7 @@ merkel$confid_merkel[merkel$confid_merkel == 0] <- 97
 
 out_merkel_disc <- cmstanr_to_brms(
   .formula = bf(confid_merkel | vint(97) ~ edu + race + income + party,
-                disc ~ 1 + edu,
+                #disc ~ 1 + edu,
                 hu ~ 1 + edu + race + income + party
   ),
   .outcome = merkel$confid_merkel,

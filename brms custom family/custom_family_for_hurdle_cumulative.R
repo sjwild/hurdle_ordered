@@ -80,7 +80,7 @@ posterior_predict_hurdle_cumulative <- function(i, prep, ...) {
   )
   draws <- first_greater(p, target = runif(prep$ndraws, min = 0, max = 1))
   theta <- runif(ndraws, 0, 1)
-  draws[hu > theta] <- DK[draws[hu > theta]]
+  draws[hu < theta] <- DK[draws[hu < theta]]
   return(draws)
 }
 
