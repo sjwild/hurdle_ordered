@@ -1,6 +1,16 @@
+library(brms)
+library(cmdstanr)
+library(posterior)
+library(magrittr)
+library(tidyverse)
+library(here)
 
+source("helper_functions_from_brms.R")
+
+
+# needed functions fro custom family
 stan_funs <- "
-  real zi_cumulative_lpmf(int y, real mu, real zi, vector c, int vint1) { 
+  real zero_inflated_cumulative_lpmf(int y, real mu, real zi, vector c, int vint1) { 
 
     if (y == vint1) { 
       return log_sum_exp(bernoulli_lpmf(1 | zi),  
@@ -14,9 +24,9 @@ stan_funs <- "
   
   "
 
-zi_cumulative <- 
+zero_inflated_cumulative <- 
   # Create a custom family that is logit if y = DK, cumulative if not
-  custom_family("zi_cumulative", 
+  custom_family("zero_inflated_cumulative", 
                 dpars = c("mu", "zi"),
                 links = c("logit", "logit"),
                 specials = "ordinal",
@@ -25,7 +35,7 @@ zi_cumulative <-
                 threshold = "flexible")
 
 
-log_lik_zi_cumulative <- function(i, prep) {
+log_lik_zero_inflated_cumulative <- function(i, prep) {
   mu <- logit(get_dpar(prep, "mu", i = i))
   theta <- get_dpar(prep, "zi", i = i)
   thres <- subset_thres(prep, i)
@@ -63,7 +73,7 @@ log_lik_zi_cumulative <- function(i, prep) {
 
 
 # Gotta work on this
-posterior_predict_zi_cumulative <- function(i, prep, ...) {
+posterior_predict_zero_inflated_cumulative <- function(i, prep, ...) {
   mu <- brms::get_dpar(prep, "mu", i = i)
   theta <- brms::get_dpar(prep, "zi", i = i)
   thres <- subset_thres(prep)
@@ -85,7 +95,7 @@ posterior_predict_zi_cumulative <- function(i, prep, ...) {
 }
 
 #and gotta work on this
-posterior_epred_zi_cumulative <- function(prep) {
+posterior_epred_zero_inflated_cumulative <- function(prep) {
   #dens <- get(paste0("d", "cumulative"), mode = "function")
   # the linear scale has one column less than the response scale
   adjust <- ifelse(prep$family$link == "identity", 0, 1)
@@ -130,28 +140,6 @@ posterior_epred_zi_cumulative <- function(prep) {
 
 
 
-# test with data
-merkel <- read.csv("https://raw.githubusercontent.com/octmedina/zi-ordinal/main/merkel_data.csv")
-merkel$confid_merkel[merkel$confid_merkel == 0] <- 3
-
-out_merkel_zi <- brm(bf(confid_merkel | vint(3) ~ edu + race + income + party,
-                #disc ~ 1 + edu,
-                zi ~ 1 + edu + race + income + party),
-                data = merkel,
-                family = zi_cumulative,
-                stan_funs = stan_funs,
-                cores = 4,
-                chains = 4,
-                iter = 4000,
-                warmup = 2000,
-                backend = "cmdstanr")
-                
-loo(out_merkel_zi)
-pp_check(out_merkel_zi, type = "bars", ndraws = 50)        
-summary(out_merkel_zi)
-
-
-
 
 
 #### Simulate some data for testing ####
@@ -172,8 +160,8 @@ p1 <- 1 - p2
 p2 <- p2 - p3
 for(i in 1:N){
   y_zi[i] <- sample(1:3, 
-                 size = 1,
-                 prob = c(p1[i], p2[i], p3[i]))
+                    size = 1,
+                    prob = c(p1[i], p2[i], p3[i]))
 }
 
 
@@ -186,10 +174,10 @@ df_zi <- data.frame(y = y_zi, X)
 
 
 out_sim_zi <- brm(bf(y | vint(2) ~ X1 + X2 + X3 + X4 + X5,
-                  zi ~ 0 + X1 + X2 + X3 + X4 + X5),
+                     zi ~ 0 + X1 + X2 + X3 + X4 + X5),
                   prior = c(prior(normal(0, 2), class = b)),
                   data = df_zi,
-                  family = zi_cumulative,
+                  family = zero_inflated_cumulative,
                   stan_funs = stan_funs,
                   cores = 4,
                   chains = 4,
@@ -198,4 +186,31 @@ out_sim_zi <- brm(bf(y | vint(2) ~ X1 + X2 + X3 + X4 + X5,
                   backend = "cmdstanr")
 summary(out_sim_zi)                  
 pp_check(out_sim_zi, type = "bars")
+
+
+
+
+# test with real data
+# with this data it doesn't return the proper values. I am not sure why. 
+merkel <- read.csv("https://raw.githubusercontent.com/octmedina/zi-ordinal/main/merkel_data.csv")
+merkel$confid_merkel[merkel$confid_merkel == 0] <- 3
+
+out_merkel_zi <- brm(bf(confid_merkel | vint(3) ~ edu + race + income + party,
+                #disc ~ 1 + edu,
+                zi ~ 1 + edu + race + income + party),
+                data = merkel,
+                family = zero_inflated_cumulative,
+                stan_funs = stan_funs,
+                prior = c(prior(normal(0, 2), class = b),
+                          prior(normal(0, 2), class = Intercept, dpar = zi)),
+                cores = 4,
+                chains = 4,
+                iter = 3000,
+                warmup = 2000,
+                backend = "cmdstanr",
+                control = list(adapt_delta = 0.99))
+                
+loo(out_merkel_zi)
+pp_check(out_merkel_zi, type = "bars", ndraws = 50)        
+summary(out_merkel_zi)
 
