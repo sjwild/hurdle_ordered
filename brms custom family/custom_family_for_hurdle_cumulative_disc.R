@@ -13,7 +13,7 @@ hurdle_cumulative <-
 stan_funs <- "
   real hurdle_cumulative_lpmf(int y, real mu, real hu, real disc, vector thres, int vint1) { 
   
-  int nthres = num_elements(c);
+  int nthres = num_elements(thres);
   real mu_logit = logit(mu);
   
     if (y == vint1) { 
@@ -32,15 +32,6 @@ stan_funs <- "
        ) + bernoulli_lpmf(0 | hu);
       }
     } 
-  }
-  
-  int hurdle_cumulative_rng(real mu, real hu, vector c, int vint1) {
-    if (bernoulli_rng(hu) == 1){
-      return vint1;
-    }
-    else {
-      return ordered_logistic_rng(logit(mu), c);
-    }
   }
   
   "
@@ -189,15 +180,6 @@ cmstanr_to_brms <- function(
        ) + bernoulli_lpmf(0 | hu);
       }
     } 
-  }
-  
-  int hurdle_cumulative_rng(real mu, real hu, vector c, int vint1) {
-    if (bernoulli_rng(hu) == 1){
-      return vint1;
-    }
-    else {
-      return ordered_logistic_rng(logit(mu), c);
-    }
   }
   
   "
