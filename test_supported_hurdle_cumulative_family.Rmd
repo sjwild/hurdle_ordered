@@ -1,0 +1,161 @@
+---
+title: "testing hurdle_cumulative family"
+author: "Stephen Wild"
+date: "14/01/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Surveys often contain ordinal variables, like Likert scales. These can be tough to deal with. One great thing about brms is its ability to deal with ordinal data using a cumulative logit (or probit, or cauchit, or...) model, rather than treating the data as continuous.
+
+One issue that often arises is how to model responses when respondents answer "Don't know." This happens often. Many times you can only respond to a Likert scale question if you know something about the topic! 
+
+In this way, we can treat the responses to the Likert scale as having to overcome a hurdle: You need to know something about the topic to have an opinion on it.
+
+Thankfully, brms let us model this type of data. Let's start by loading the packages we'll need.
+
+
+```{r load packages, results = 'hide'}
+devtools::load_all("/Users/stephenwild/Desktop/Stats_stuff/brms")
+library(tidyverse)
+
+```
+
+To make use our hurdle ordinal model, we'll create some test data. 
+```{r test data}
+
+# create test data. We'll compare our results to these values
+N <- 2500
+P <- 5
+cutpoints <- c(1, -1)
+y <- rep(0, N)
+betas <- c(-.15, -.5, 3, .5, -1)
+gammas <- c(3, -2, -2, -1, -.5)
+
+
+# Build predictors and response
+set.seed(143140914) # set seed for reproducibility
+X <- matrix(runif(N * P), N, P)
+p2 <- plogis(cutpoints[1] + X %*% betas)
+p3 <- plogis(cutpoints[2] + X %*% betas)
+
+
+# create thresholds
+p1 <- 1 - p2
+p2 <- p2 - p3
+
+
+# sample based on thresholds
+for(i in 1:N){
+  y[i] <- sample(1:3, 
+                 size = 1,
+                 prob = c(p1[i], p2[i], p3[i]))
+}
+
+
+# Simulate "Don't knows"
+# It must be 0 to serve as the hurdle
+p <- plogis(X %*% gammas)
+dk <- rbinom(N, 1, p)
+y[dk == 1] = 0 # replaces "true' values respondents would give if they knew about topic
+
+# put it all together in a dataframe
+df <- data.frame(y = y, X)
+
+```
+
+And with that, we have our data. Let's compare it and see what it looks like.
+
+```{r plot data}
+ggplot(data = df) +
+  geom_bar(mapping = aes(x = y),
+           fill = "firebrick") +
+  labs(title = "Response values in simulated data") +
+  theme_bw()
+
+```
+
+Perfect. with that we can model our data. We'll see if the values we get are similar to the parameters we simulated.
+
+```{r run model, results = 'hide'}
+mod <- brm(bf(y ~ X1 + X2 + X3 + X4 + X5,
+           hu ~ 0 + X1 + X2 + X3 + X4 + X5),
+           family = hurdle_cumulative(),
+           data = df,
+           cores = 4,
+           chains = 4)
+```
+
+```{r display results of mod}
+mod
+
+```
+
+Success! our values are similar. That's good and what we want to see. Let's also try other links to make sure they work too.
+
+```{r other links, , results = 'hide'}
+
+mod2 <- brm(bf(y ~ X1 + X2 + X3 + X4 + X5,
+              hu ~ 0 + X1 + X2 + X3 + X4 + X5),
+           family = hurdle_cumulative(link = "probit"),
+           data = df,
+           cores = 4,
+           chains = 4)
+mod3 <- brm(bf(y ~ X1 + X2 + X3 + X4 + X5,
+               hu ~ 0 + X1 + X2 + X3 + X4 + X5),
+            family = hurdle_cumulative(link = "cauchit"),
+            data = df,
+            cores = 4,
+            chains = 4)
+```
+
+```{r display results of other links}
+mod2
+mod3
+```
+
+Finally, we want to test the post-processing functions, like `loo_compare()` and `pp_check()`. This is important, because a lot of users use brms because a) Stan can be confusing, and b) it's easy to work with brmsfit objects.
+
+```{r test post-processing functions}
+
+loo_compare.brmsfit(add_criterion(mod, criterion = "loo"), 
+                    add_criterion(mod2, criterion = "loo"),
+                    add_criterion(mod3, criterion = "loo"))
+
+pp_check(mod, type = "bars", ndraws = 50) +
+  labs(title = "pp_check for test data") +
+  theme_bw()
+
+```
+
+
+## test with merkel data used by Octavio Medina
+Finally, we want to test it on real data. Thankfully, Octavio Medina has us covered. He has a great [blog post](https://octavio.me/posts/dont-knows/) on using Stan to model "Don't knows." He also produced a [custom brms family](https://discourse.mc-stan.org/t/modeling-non-response-in-ordinal-survey-data/25151/2) that can be used.
+
+I'm going to skip a lot of what he did with Stan and the custom family and simply load his data.
+
+```{r load and test merkel data, results = 'hide'}
+merkel <- read.csv("https://raw.githubusercontent.com/octmedina/zi-ordinal/main/merkel_data.csv")
+
+mod_merkel <- brm(bf(confid_merkel ~ edu + race + income + party,
+                     #disc ~ 1 + edu,
+                     hu ~ 1 + edu + race + income + party),
+                  data = merkel,
+                  family = hurdle_cumulative(),
+                  cores = 4,
+                  chains = 4)
+```
+
+```{r display merkel output}
+mod_merkel
+pp_check(mod_merkel, type ="bars", ndraws = 50) + 
+  labs(title = "pp_check for Merkel data") +
+  theme_bw()
+```
+
+And there is is. The hurdle_cumulative family works.
